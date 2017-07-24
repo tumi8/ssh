@@ -185,7 +185,7 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 // an error to reject it. It receives the hostname as passed to Dial
 // or NewClientConn. The remote address is the RemoteAddr of the
 // net.Conn underlying the the SSH connection.
-type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey) error
+type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error // Change HE: add values that we need in keyCallback of scanner (Ciphers, Macs, ...)
 
 // A ClientConfig structure is used to configure a Client. It must not be
 // modified after having been passed to an SSH function.
@@ -230,7 +230,7 @@ type ClientConfig struct {
 // ClientConfig.HostKeyCallback to accept any host key. It should
 // not be used for production code.
 func InsecureIgnoreHostKey() HostKeyCallback {
-	return func(hostname string, remote net.Addr, key PublicKey) error {
+	return func(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error {
 		return nil
 	}
 }
@@ -239,7 +239,7 @@ type fixedHostKey struct {
 	key PublicKey
 }
 
-func (f *fixedHostKey) check(hostname string, remote net.Addr, key PublicKey) error {
+func (f *fixedHostKey) check(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error {
 	if f.key == nil {
 		return fmt.Errorf("ssh: required host key was nil")
 	}
