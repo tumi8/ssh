@@ -61,8 +61,8 @@ type handshakeTransport struct {
 	mu             sync.Mutex
 	writeError     error
 	sentInitPacket []byte
-	sentInitMsg    *KexInitMsg // Change HE: made struct public to access it from scanner
-	pendingPackets [][]byte    // Used when a key exchange is in progress.
+	sentInitMsg    *KexInitMsg
+	pendingPackets [][]byte // Used when a key exchange is in progress.
 
 	// If the read loop wants to schedule a kex, it pings this
 	// channel, and the write loop will send out a kex

@@ -185,7 +185,7 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 // an error to reject it. It receives the hostname as passed to Dial
 // or NewClientConn. The remote address is the RemoteAddr of the
 // net.Conn underlying the the SSH connection.
-type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error // Change HE: add values that we need in keyCallback of scanner (Ciphers, Macs, ...)
+type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error
 
 // A ClientConfig structure is used to configure a Client. It must not be
 // modified after having been passed to an SSH function.
