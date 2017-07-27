@@ -128,9 +128,8 @@ func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byt
 	go t.readLoop()
 
 	var server_info ServerInfo
-	go func(serverInfo *ServerInfo) {
-		t.kexLoop(serverInfo)
-	}(&server_info)
+	// no need for a go func, needs to finish before returning to gather publicKey
+	t.kexLoop(&server_info)
 
 	return t, server_info
 }
@@ -579,23 +578,21 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte, serverInfo
 	}
 
 	var result *kexResult
+	var hostKey PublicKey
 	if len(t.hostKeys) > 0 {
 		result, err = t.server(kex, t.algorithms, &magics)
 	} else {
-		result, err = t.client(kex, t.algorithms, &magics)
+		result, hostKey, err = t.client(kex, t.algorithms, &magics)
 	}
-	if err != nil {
-		return err
-	}
-
 	// get server information needed for SSH scanner
-	hostKey, err := ParsePublicKey(result.HostKey)
-	if err != nil {
-		return err
-	}
+	// need to asign before return of error because keyCallBack always returns an error
 	if serverInfo != nil {
 		serverInfo.ServerInit = *serverInit
 		serverInfo.Key = hostKey
+	}
+
+	if err != nil {
+		return err
 	}
 
 	if t.sessionID == nil {
@@ -630,25 +627,26 @@ func (t *handshakeTransport) server(kex kexAlgorithm, algs *algorithms, magics *
 	return r, err
 }
 
-func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, error) {
+func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, PublicKey, error) {
 	result, err := kex.Client(t.conn, t.config.Rand, magics)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	hostKey, err := ParsePublicKey(result.HostKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := verifyHostKeySignature(hostKey, result); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = t.hostKeyCallback(t.dialAddress, t.remoteAddr, hostKey)
 	if err != nil {
-		return nil, err
+		// hostKey needs to be returned here - hostKeyCallback returns an error
+		return nil, hostKey, err
 	}
 
-	return result, nil
+	return result, nil, nil
 }

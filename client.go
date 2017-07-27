@@ -101,11 +101,10 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 		return err
 	}
 
-	c.server_info.ServerVersion = string(c.serverVersion)
-
 	c.transport, c.server_info = newClientTransport(
 		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
 		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
+	c.server_info.ServerVersion = string(c.serverVersion)
 	if err := c.transport.waitSession(); err != nil {
 		return err
 	}
