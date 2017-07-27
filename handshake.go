@@ -61,7 +61,7 @@ type handshakeTransport struct {
 	mu             sync.Mutex
 	writeError     error
 	sentInitPacket []byte
-	sentInitMsg    *KexInitMsg
+	sentInitMsg    *kexInitMsg
 	pendingPackets [][]byte // Used when a key exchange is in progress.
 
 	// If the read loop wants to schedule a kex, it pings this
@@ -115,7 +115,7 @@ func newHandshakeTransport(conn keyingTransport, config *Config, clientVersion, 
 	return t
 }
 
-func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ClientConfig, dialAddr string, addr net.Addr) *handshakeTransport {
+func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ClientConfig, dialAddr string, addr net.Addr) (*handshakeTransport, ServerInfo) {
 	t := newHandshakeTransport(conn, &config.Config, clientVersion, serverVersion)
 	t.dialAddress = dialAddr
 	t.remoteAddr = addr
@@ -126,15 +126,20 @@ func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byt
 		t.hostKeyAlgorithms = supportedHostKeyAlgos
 	}
 	go t.readLoop()
-	go t.kexLoop()
-	return t
+
+	var server_info ServerInfo
+	go func(serverInfo *ServerInfo) {
+		t.kexLoop(serverInfo)
+	}(&server_info)
+
+	return t, server_info
 }
 
 func newServerTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ServerConfig) *handshakeTransport {
 	t := newHandshakeTransport(conn, &config.Config, clientVersion, serverVersion)
 	t.hostKeys = config.hostKeys
 	go t.readLoop()
-	go t.kexLoop()
+	go t.kexLoop(nil)
 	return t
 }
 
@@ -250,7 +255,7 @@ func (t *handshakeTransport) resetWriteThresholds() {
 	}
 }
 
-func (t *handshakeTransport) kexLoop() {
+func (t *handshakeTransport) kexLoop(serverInfo *ServerInfo) {
 
 write:
 	for t.getWriteError() == nil {
@@ -288,11 +293,11 @@ write:
 		// we never block on sending to t.requestKex.
 
 		// We're not servicing t.startKex, but the remote end
-		// has just sent us a KexInitMsg, so it can't send
+		// has just sent us a kexInitMsg, so it can't send
 		// another key change request, until we close the done
 		// channel on the pendingKex request.
 
-		err := t.enterKeyExchange(request.otherInit)
+		err := t.enterKeyExchange(request.otherInit, serverInfo)
 
 		t.mu.Lock()
 		t.writeError = err
@@ -438,7 +443,7 @@ func (t *handshakeTransport) sendKexInit() error {
 		return nil
 	}
 
-	msg := &KexInitMsg{
+	msg := &kexInitMsg{
 		KexAlgos:                t.config.KeyExchanges,
 		CiphersClientServer:     t.config.Ciphers,
 		CiphersServerClient:     t.config.Ciphers,
@@ -518,12 +523,12 @@ func (t *handshakeTransport) Close() error {
 	return t.conn.Close()
 }
 
-func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
+func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte, serverInfo *ServerInfo) error {
 	if debugHandshake {
 		log.Printf("%s entered key exchange", t.id())
 	}
 
-	otherInit := &KexInitMsg{}
+	otherInit := &kexInitMsg{}
 	if err := Unmarshal(otherInitPacket, otherInit); err != nil {
 		return err
 	}
@@ -577,11 +582,20 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 	if len(t.hostKeys) > 0 {
 		result, err = t.server(kex, t.algorithms, &magics)
 	} else {
-		result, err = t.client(kex, t.algorithms, &magics, serverInit, t.serverVersion)
+		result, err = t.client(kex, t.algorithms, &magics)
 	}
-
 	if err != nil {
 		return err
+	}
+
+	// get server information needed for SSH scanner
+	hostKey, err := ParsePublicKey(result.HostKey)
+	if err != nil {
+		return err
+	}
+	if serverInfo != nil {
+		serverInfo.ServerInit = *serverInit
+		serverInfo.Key = hostKey
 	}
 
 	if t.sessionID == nil {
@@ -616,7 +630,7 @@ func (t *handshakeTransport) server(kex kexAlgorithm, algs *algorithms, magics *
 	return r, err
 }
 
-func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics, serverInit *KexInitMsg, serverVersion []byte) (*kexResult, error) {
+func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, error) {
 	result, err := kex.Client(t.conn, t.config.Rand, magics)
 	if err != nil {
 		return nil, err
@@ -631,7 +645,7 @@ func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *
 		return nil, err
 	}
 
-	err = t.hostKeyCallback(t.dialAddress, t.remoteAddr, hostKey, *serverInit, string(serverVersion))
+	err = t.hostKeyCallback(t.dialAddress, t.remoteAddr, hostKey)
 	if err != nil {
 		return nil, err
 	}

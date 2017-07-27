@@ -54,8 +54,7 @@ func (d *disconnectMsg) Error() string {
 // See RFC 4253, section 7.1.
 const msgKexInit = 20
 
-// KexInitMsg struct is public to access it from goscanner
-type KexInitMsg struct {
+type kexInitMsg struct {
 	Cookie                  [16]byte `sshtype:"20"`
 	KexAlgos                []string
 	ServerHostKeyAlgos      []string
@@ -710,7 +709,7 @@ func decode(packet []byte) (interface{}, error) {
 	case msgServiceAccept:
 		msg = new(serviceAcceptMsg)
 	case msgKexInit:
-		msg = new(KexInitMsg)
+		msg = new(kexInitMsg)
 	case msgKexDHInit:
 		msg = new(kexDHInitMsg)
 	case msgKexDHReply:

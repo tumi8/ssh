@@ -67,12 +67,12 @@ func NewClient(c Conn, chans <-chan NewChannel, reqs <-chan *Request) *Client {
 // NewClientConn establishes an authenticated SSH connection using c
 // as the underlying transport.  The Request and NewChannel channels
 // must be serviced or the connection will hang.
-func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan NewChannel, <-chan *Request, error) {
+func NewClientConn(c net.Conn, addr string, config *ClientConfig) (ServerInfo, Conn, <-chan NewChannel, <-chan *Request, error) {
 	fullConf := *config
 	fullConf.SetDefaults()
 	if fullConf.HostKeyCallback == nil {
 		c.Close()
-		return nil, nil, nil, errors.New("ssh: must specify HostKeyCallback")
+		return ServerInfo{}, nil, nil, nil, errors.New("ssh: must specify HostKeyCallback")
 	}
 
 	conn := &connection{
@@ -81,10 +81,10 @@ func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan 
 
 	if err := conn.clientHandshake(addr, &fullConf); err != nil {
 		c.Close()
-		return nil, nil, nil, fmt.Errorf("ssh: handshake failed: %v", err)
+		return conn.server_info, nil, nil, nil, fmt.Errorf("ssh: handshake failed: %v", err)
 	}
 	conn.mux = newMux(conn.transport)
-	return conn, conn.mux.incomingChannels, conn.mux.incomingRequests, nil
+	return ServerInfo{}, conn, conn.mux.incomingChannels, conn.mux.incomingRequests, nil
 }
 
 // clientHandshake performs the client side key exchange. See RFC 4253 Section
@@ -101,7 +101,9 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 		return err
 	}
 
-	c.transport = newClientTransport(
+	c.server_info.ServerVersion = string(c.serverVersion)
+
+	c.transport, c.server_info = newClientTransport(
 		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
 		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
 	if err := c.transport.waitSession(); err != nil {
@@ -173,7 +175,7 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, chans, reqs, err := NewClientConn(conn, addr, config)
+	_, c, chans, reqs, err := NewClientConn(conn, addr, config)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +187,7 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 // an error to reject it. It receives the hostname as passed to Dial
 // or NewClientConn. The remote address is the RemoteAddr of the
 // net.Conn underlying the the SSH connection.
-type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error
+type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey) error
 
 // A ClientConfig structure is used to configure a Client. It must not be
 // modified after having been passed to an SSH function.
@@ -230,7 +232,7 @@ type ClientConfig struct {
 // ClientConfig.HostKeyCallback to accept any host key. It should
 // not be used for production code.
 func InsecureIgnoreHostKey() HostKeyCallback {
-	return func(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error {
+	return func(hostname string, remote net.Addr, key PublicKey) error {
 		return nil
 	}
 }
@@ -239,7 +241,7 @@ type fixedHostKey struct {
 	key PublicKey
 }
 
-func (f *fixedHostKey) check(hostname string, remote net.Addr, key PublicKey, serverInit KexInitMsg, serverVersion string) error {
+func (f *fixedHostKey) check(hostname string, remote net.Addr, key PublicKey) error {
 	if f.key == nil {
 		return fmt.Errorf("ssh: required host key was nil")
 	}
