@@ -128,7 +128,7 @@ func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byt
 	go t.readLoop()
 
 	var server_info ServerInfo
-	t.kexLoop(&server_info)
+	go t.kexLoop(&server_info)
 
 	return t, &server_info
 }
