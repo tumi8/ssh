@@ -127,10 +127,10 @@ func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byt
 	}
 	go t.readLoop()
 
-	var server_info ServerInfo
-	go t.kexLoop(&server_info)
+	var serverInfo ServerInfo
+	go t.kexLoop(&serverInfo)
 
-	return t, &server_info
+	return t, &serverInfo
 }
 
 func newServerTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ServerConfig) *handshakeTransport {
