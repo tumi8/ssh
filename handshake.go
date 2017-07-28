@@ -575,7 +575,7 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte, serverInfo
 	}
 
 	var result *kexResult
-	var hostKey PublicKey
+	var hostKey *PublicKey
 	if len(t.hostKeys) > 0 {
 		result, err = t.server(kex, t.algorithms, &magics)
 	} else {
@@ -585,7 +585,7 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte, serverInfo
 	// need to asign before return of error because keyCallBack always returns an error
 	if serverInfo != nil {
 		serverInfo.ServerInit = *serverInit
-		serverInfo.Key = hostKey
+		serverInfo.Key = *hostKey
 	}
 
 	if err != nil {
@@ -624,7 +624,7 @@ func (t *handshakeTransport) server(kex kexAlgorithm, algs *algorithms, magics *
 	return r, err
 }
 
-func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, PublicKey, error) {
+func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, *PublicKey, error) {
 	result, err := kex.Client(t.conn, t.config.Rand, magics)
 	if err != nil {
 		return nil, nil, err
@@ -636,13 +636,13 @@ func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *
 	}
 
 	if err := verifyHostKeySignature(hostKey, result); err != nil {
-		return nil, hostKey, err
+		return nil, &hostKey, err
 	}
 
 	err = t.hostKeyCallback(t.dialAddress, t.remoteAddr, hostKey)
 	if err != nil {
 		// hostKey needs to be returned here - hostKeyCallback returns an error
-		return nil, hostKey, err
+		return nil, &hostKey, err
 	}
 
 	return result, nil, nil
