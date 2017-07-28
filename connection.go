@@ -89,8 +89,17 @@ type connection struct {
 	transport *handshakeTransport
 	sshConn
 
+	serverInfo ServerInfo
+
 	// The connection protocol.
 	*mux
+}
+
+// ServerInfo contains all fields needed by the ssh scanner
+type ServerInfo struct {
+	ServerInit    kexInitMsg
+	ServerVersion string
+	Key           PublicKey
 }
 
 func (c *connection) Close() error {

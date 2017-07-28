@@ -67,12 +67,12 @@ func NewClient(c Conn, chans <-chan NewChannel, reqs <-chan *Request) *Client {
 // NewClientConn establishes an authenticated SSH connection using c
 // as the underlying transport.  The Request and NewChannel channels
 // must be serviced or the connection will hang.
-func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan NewChannel, <-chan *Request, error) {
+func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan NewChannel, <-chan *Request, *ServerInfo, error) {
 	fullConf := *config
 	fullConf.SetDefaults()
 	if fullConf.HostKeyCallback == nil {
 		c.Close()
-		return nil, nil, nil, errors.New("ssh: must specify HostKeyCallback")
+		return nil, nil, nil, nil, errors.New("ssh: must specify HostKeyCallback")
 	}
 
 	conn := &connection{
@@ -81,10 +81,10 @@ func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan 
 
 	if err := conn.clientHandshake(addr, &fullConf); err != nil {
 		c.Close()
-		return nil, nil, nil, fmt.Errorf("ssh: handshake failed: %v", err)
+		return nil, nil, nil, &conn.serverInfo, fmt.Errorf("ssh: handshake failed: %v", err)
 	}
 	conn.mux = newMux(conn.transport)
-	return conn, conn.mux.incomingChannels, conn.mux.incomingRequests, nil
+	return conn, conn.mux.incomingChannels, conn.mux.incomingRequests, nil, nil
 }
 
 // clientHandshake performs the client side key exchange. See RFC 4253 Section
@@ -103,7 +103,8 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 
 	c.transport = newClientTransport(
 		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
-		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
+		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr(), &c.serverInfo)
+	c.serverInfo.ServerVersion = string(c.serverVersion)
 	if err := c.transport.waitSession(); err != nil {
 		return err
 	}
@@ -173,7 +174,7 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, chans, reqs, err := NewClientConn(conn, addr, config)
+	c, chans, reqs, _, err := NewClientConn(conn, addr, config)
 	if err != nil {
 		return nil, err
 	}
