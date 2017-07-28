@@ -89,12 +89,13 @@ type connection struct {
 	transport *handshakeTransport
 	sshConn
 
-	server_info ServerInfo
+	server_info *ServerInfo
 
 	// The connection protocol.
 	*mux
 }
 
+// ServerInfo contains all fields needed by the ssh scanner
 type ServerInfo struct {
 	ServerInit    kexInitMsg
 	ServerVersion string

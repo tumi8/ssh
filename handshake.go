@@ -115,7 +115,7 @@ func newHandshakeTransport(conn keyingTransport, config *Config, clientVersion, 
 	return t
 }
 
-func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ClientConfig, dialAddr string, addr net.Addr) (*handshakeTransport, ServerInfo) {
+func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ClientConfig, dialAddr string, addr net.Addr) (*handshakeTransport, *ServerInfo) {
 	t := newHandshakeTransport(conn, &config.Config, clientVersion, serverVersion)
 	t.dialAddress = dialAddr
 	t.remoteAddr = addr
@@ -128,10 +128,9 @@ func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byt
 	go t.readLoop()
 
 	var server_info ServerInfo
-	// no need for a go func, needs to finish before returning to gather publicKey
 	t.kexLoop(&server_info)
 
-	return t, server_info
+	return t, &server_info
 }
 
 func newServerTransport(conn keyingTransport, clientVersion, serverVersion []byte, config *ServerConfig) *handshakeTransport {
