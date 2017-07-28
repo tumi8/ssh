@@ -89,7 +89,7 @@ type connection struct {
 	transport *handshakeTransport
 	sshConn
 
-	serverInfo *ServerInfo
+	serverInfo ServerInfo
 
 	// The connection protocol.
 	*mux

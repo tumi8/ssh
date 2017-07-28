@@ -81,7 +81,7 @@ func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan 
 
 	if err := conn.clientHandshake(addr, &fullConf); err != nil {
 		c.Close()
-		return nil, nil, nil, conn.serverInfo, fmt.Errorf("ssh: handshake failed: %v", err)
+		return nil, nil, nil, &conn.serverInfo, fmt.Errorf("ssh: handshake failed: %v", err)
 	}
 	conn.mux = newMux(conn.transport)
 	return conn, conn.mux.incomingChannels, conn.mux.incomingRequests, nil, nil
@@ -101,9 +101,9 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 		return err
 	}
 
-	c.transport, c.serverInfo = newClientTransport(
+	c.transport = newClientTransport(
 		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
-		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
+		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr(), &c.serverInfo)
 	c.serverInfo.ServerVersion = string(c.serverVersion)
 	if err := c.transport.waitSession(); err != nil {
 		return err
