@@ -636,7 +636,7 @@ func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *
 	}
 
 	if err := verifyHostKeySignature(hostKey, result); err != nil {
-		return nil, nil, err
+		return nil, hostKey, err
 	}
 
 	err = t.hostKeyCallback(t.dialAddress, t.remoteAddr, hostKey)
