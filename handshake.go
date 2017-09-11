@@ -583,7 +583,7 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte, serverInfo
 	}
 	// get server information needed for SSH scanner
 	// need to asign before return of error because keyCallBack always returns an error
-	if serverInfo != nil {
+	if serverInfo != nil && hostKey != nil {
 		serverInfo.ServerInit = *serverInit
 		serverInfo.Key = *hostKey
 	}
