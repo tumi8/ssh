@@ -585,6 +585,8 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte, serverInfo
 	// need to asign before return of error because keyCallBack always returns an error
 	if serverInfo != nil {
 		serverInfo.ServerInit = *serverInit
+	}
+	if hostKey != nil {
 		serverInfo.Key = *hostKey
 	}
 
